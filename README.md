@@ -2,7 +2,7 @@
 
 ⚠️ Experimental
 
-CLI tool to generate bindings for this [swift Web3 library](https://github.com/Boilertalk/Web3.swift) by Boilertalk. Compiling swift project to standalone binary is quite troublesome so it is not provided.
+CLI tool to generate bindings for this [swift Web3 library](https://github.com/Boilertalk/Web3.swift) by Boilertalk. Executable is not provided because compiling swift package to a single executable is difficult.
 
 ## Usage
 In package directory,
