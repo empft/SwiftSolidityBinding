@@ -384,7 +384,7 @@ private func generateFunction(_ item: ContractItem) -> String {
     } else {
         text.append("""
         return SolidityTypedInvocation(invocation: invocation, { _ in
-            return Void
+            return
         })
         }
         """)
