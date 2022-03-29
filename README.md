@@ -2,7 +2,7 @@
 
 ⚠️ Experimental
 
-CLI tool to generate bindings for this [swift Web3 library](https://github.com/Boilertalk/Web3.swift) by Boilertalk. Executable is not provided because compiling swift package to a single executable is difficult. The typed branch implements static return type but it requires extra code which can be found [here](https://github.com/stevealexrs/Web3.swift/blob/master/Sources/Web3ContractABI/ContractABI/Contract/SolidityTypedInvocation.swift).
+CLI tool to generate bindings for this [swift Web3 library](https://github.com/Boilertalk/Web3.swift) by Boilertalk. Executable is not provided because compiling swift package to a single executable is difficult. The typed branch implements static return type but it requires [extra code](https://github.com/stevealexrs/Web3.swift/blob/master/Sources/Web3ContractABI/ContractABI/Contract/SolidityTypedInvocation.swift).
 
 ## Usage
 In package directory,
