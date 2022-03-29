@@ -7,6 +7,9 @@
 
 import Foundation
 
+private let unnamed = "unnamed"
+private let dictResult = "result"
+
 private extension Parameter {
     var isArray: Bool {
         return self.type.hasSuffix("]")
@@ -95,61 +98,6 @@ private func toSolidityType(_ type: String) -> String {
     }
 }
 
-/// Generate function inputs parameter recursively
-/// Not all types are supported
-/// Example:
-/// from: EthereumAddress, to: EthereumAddress, value: BigUInt
-private func generateFunctionInputs(_ parameters: [Parameter], unnamedParamCount: Int = 0) -> String {
-    var newParamCount = unnamedParamCount
-    var text = ""
-    for (index, parameter) in parameters.enumerated() {
-        if index != 0 {
-            text += ", "
-        }
-        var name = parameter.name
-        if parameter.name.isEmpty {
-            name = "unnamed\(newParamCount)"
-            newParamCount += 1
-        }
-        
-        //is tuple
-        if let components = parameter.components {
-            text += "\(name): (\(generateFunctionInputs(components, unnamedParamCount: newParamCount)))"
-        } else {
-            text += "\(name): \(toLocalType(parameter.type))"
-        }
-    }
-    return text
-}
-
-/// Generate function inputs name recursively
-/// Example:
-/// from, to, value
-private func generateFunctionInputsName(_ parameters: [Parameter], unnamedParamCount: Int = 0) -> String {
-    var newParamCount = unnamedParamCount
-    var text = ""
-    for (index, parameter) in parameters.enumerated() {
-        if index != 0 {
-            text += ", "
-        }
-        
-        var name = parameter.name
-        if parameter.name.isEmpty {
-            name = "unnamed\(newParamCount)"
-            newParamCount += 1
-        }
-        
-        //is tuple
-        if let components = parameter.components {
-            text += "(\(generateFunctionInputsName(components, unnamedParamCount: newParamCount)))"
-        } else {
-            text += "\(name)"
-        }
-    }
-    return text
-}
-
-
 private func formatIndexed(_ indexed: Bool?) -> String {
     if let indexed = indexed {
         return """
@@ -200,7 +148,7 @@ private func generateParameterArray(_ parameters: [Parameter], unnamedParamCount
         
         var name = parameter.name
         if parameter.name.isEmpty {
-            name = "unnamed\(newParamCount)"
+            name = "\(unnamed)\(newParamCount)"
             newParamCount += 1
         }
         
@@ -251,34 +199,137 @@ private func generateEvent(_ item: ContractItem) -> String {
     return text.joined()
 }
 
+/// Generate function inputs parameter recursively
+/// Not all types are supported
+/// Example:
+/// from: EthereumAddress, to: EthereumAddress, value: BigUInt
+private func generateFunctionParameters(_ parameters: [Parameter], unnamedParamCount: Int = 0) -> String {
+    var newParamCount = unnamedParamCount
+    var text = ""
+    for (index, parameter) in parameters.enumerated() {
+        if index != 0 {
+            text += ", "
+        }
+        var name = parameter.name
+        if parameter.name.isEmpty {
+            name = "\(unnamed)\(newParamCount)"
+            newParamCount += 1
+        }
+        
+        //is tuple
+        if let components = parameter.components {
+            text += "\(name): (\(generateFunctionParameters(components, unnamedParamCount: newParamCount)))"
+        } else {
+            text += "\(name): \(toLocalType(parameter.type))"
+        }
+    }
+    return text
+}
+
+/// Generate function inputs name recursively
+/// Example:
+/// from, to, value
+private func generateFunctionParametersName(_ parameters: [Parameter], unnamedParamCount: Int = 0) -> String {
+    var newParamCount = unnamedParamCount
+    var text = ""
+    for (index, parameter) in parameters.enumerated() {
+        if index != 0 {
+            text += ", "
+        }
+        
+        var name = parameter.name
+        if parameter.name.isEmpty {
+            name = "\(unnamed)\(newParamCount)"
+            newParamCount += 1
+        }
+        
+        //is tuple
+        if let components = parameter.components {
+            text += "(\(generateFunctionParametersName(components, unnamedParamCount: newParamCount)))"
+        } else {
+            text += "\(name)"
+        }
+    }
+    return text
+}
+
+private func generateFunctionMappingSingle(_ parameter: Parameter) -> String {
+    let name = parameter.name == "" ? "\(unnamed)0" : parameter.name
+    return """
+    \(dictResult)[\"\(name)\"] as! \(toLocalType(parameter.type))
+    """
+}
+
+private func generateFunctionMapping(_ parameters: [Parameter], unnamedParamCount: Int = 0) -> String {
+    var newParamCount = unnamedParamCount
+    var text = ""
+    for (index, parameter) in parameters.enumerated() {
+        if index != 0 {
+            text += ", "
+        }
+        var name = parameter.name
+        if parameter.name.isEmpty {
+            name = "\(unnamed)\(newParamCount)"
+            newParamCount += 1
+        }
+        
+        //is tuple
+        if let components = parameter.components {
+            text += "(\(generateFunctionMapping(components, unnamedParamCount: newParamCount)))"
+        } else {
+            text += "\(dictResult)[\"\(name)\"] as! \(toLocalType(parameter.type))"
+        }
+    }
+    return text
+}
+
 /// Generate function
 private func generateFunction(_ item: ContractItem) -> String {
     var text: [String] = []
-    var hasInput = false
-    var hasOutput = false
+    let hasInput: Bool = !(item.inputs?.isEmpty ?? true)
+    let hasOutput: Bool = !(item.outputs?.isEmpty ?? true)
     
     if let inputs = item.inputs, !inputs.isEmpty {
-        hasInput = true
         text.append("""
-        func \(item.name!)(\(generateFunctionInputs(inputs))) -> SolidityInvocation {
-        
+        func \(item.name!)(\(generateFunctionParameters(inputs))) -> SolidityTypedInvocation<
         """)
-        
+    } else {
+        text.append("""
+        func \(item.name!)() -> SolidityTypedInvocation<
+        """)
+    }
+    
+    if let outputs = item.outputs, !outputs.isEmpty {
+        if outputs.count == 1 {
+            text.append("""
+            \(toLocalType(outputs[0].type))
+            """)
+        } else {
+            text.append("""
+            (\(generateFunctionParameters(outputs)))
+            """)
+        }
+    } else {
+        text.append("""
+        Void
+        """)
+    }
+    
+    text.append("""
+    > {
+    
+    """)
+    
+    if let inputs = item.inputs, !inputs.isEmpty {
         text.append("""
         let inputs: [SolidityFunctionParameter] = [
         \(generateParameterArray(inputs))
         ]
         
         """)
-        
-    } else {
-        text.append("""
-        func \(item.name!)() -> SolidityInvocation {
-        """)
     }
     
     if let outputs = item.outputs, !outputs.isEmpty {
-        hasOutput = true
         text.append("""
         let outputs: [SolidityFunctionParameter] = [
         \(generateParameterArray(outputs))
@@ -303,18 +354,41 @@ private func generateFunction(_ item: ContractItem) -> String {
     
     if let inputs = item.inputs, !inputs.isEmpty {
         text.append("""
-        return method.invoke(\(generateFunctionInputsName(inputs)))
-        }
+        let invocation = method.invoke(\(generateFunctionParametersName(inputs)))
         
         """)
     } else {
         text.append("""
-        return method.invoke()
-        }
+        let invocation = method.invoke()
         
         """)
     }
     
+    if let outputs = item.outputs, !outputs.isEmpty {
+        if outputs.count == 1 {
+            text.append("""
+            return SolidityTypedInvocation(invocation: invocation, { \(dictResult) in
+                return \(generateFunctionMappingSingle(outputs[0]))
+            })
+            }
+            """)
+        } else {
+            text.append("""
+            return SolidityTypedInvocation(invocation: invocation, { \(dictResult) in
+                return (\(generateFunctionMapping(outputs)))
+            })
+            }
+            """)
+        }
+        
+    } else {
+        text.append("""
+        return SolidityTypedInvocation(invocation: invocation, { _ in
+            return Void
+        })
+        }
+        """)
+    }
     return text.joined()
 }
 
@@ -328,7 +402,7 @@ private func generateConstructor(_ item: ContractItem, bytecode: String) -> Stri
     
     if let inputs = item.inputs, !inputs.isEmpty {
         text.append("""
-        \(generateFunctionInputs(inputs))
+        \(generateFunctionParameters(inputs))
         """)
     }
     
@@ -364,7 +438,7 @@ private func generateConstructor(_ item: ContractItem, bytecode: String) -> Stri
     
     if let inputs = item.inputs, !inputs.isEmpty {
         text.append("""
-        \(generateFunctionInputsName(inputs))
+        \(generateFunctionParametersName(inputs))
         """)
     }
     
