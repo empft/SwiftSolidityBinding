@@ -500,7 +500,7 @@ struct Codegen {
         
         text += """
         
-        class \(contractName): StaticContract {
+        public class \(contractName): StaticContract {
             var address: EthereumAddress?
             var eth: Web3.Eth
         
