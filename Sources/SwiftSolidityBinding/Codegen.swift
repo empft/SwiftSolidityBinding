@@ -501,10 +501,10 @@ struct Codegen {
         text += """
         
         public class \(contractName): StaticContract {
-            var address: EthereumAddress?
-            var eth: Web3.Eth
+            public var address: EthereumAddress?
+            public var eth: Web3.Eth
         
-            required init(address: EthereumAddress?, eth: Web3.Eth) {
+            required public init(address: EthereumAddress?, eth: Web3.Eth) {
                 self.address = address
                 self.eth = eth
             }
@@ -522,24 +522,24 @@ struct Codegen {
             })
         
         if !eventContractItems.isEmpty {
-            text += generateEventProperty(eventContractItems, classname: contractName)
+            text += "public " + generateEventProperty(eventContractItems, classname: contractName)
         }
         
         source.forEach { item in
             switch item.type {
             case .constructor:
                 text.append("""
-                 \(generateConstructor(item, bytecode: contractJson.bytecode))
+                 public \(generateConstructor(item, bytecode: contractJson.bytecode))
                  
                  """)
             case .event:
                 text.append("""
-                 \(generateEvent(item))
+                 public \(generateEvent(item))
                  
                  """)
             case .function:
                 text.append("""
-                 \(generateFunction(item))
+                 public \(generateFunction(item))
                  
                  """)
             default:
