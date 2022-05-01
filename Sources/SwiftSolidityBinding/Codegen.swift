@@ -171,7 +171,27 @@ private func generateParameterArray(_ parameters: [Parameter], unnamedParamCount
 private func generateEvent(_ item: ContractItem) -> String {
     var text: [String] = []
     text.append("""
-    static var \(item.name!): SolidityEvent {
+    static var \(item.name!): SolidityTypedEvent<
+    """)
+    
+    if let inputs = item.inputs, !inputs.isEmpty {
+        if inputs.count == 1 && inputs[0].components == nil {
+            text.append("""
+            \(toLocalType(inputs[0].type))
+            """)
+        } else {
+            text.append("""
+            (\(generateFunctionParameters(inputs)))
+            """)
+        }
+    } else {
+        text.append("""
+        Void
+        """)
+    }
+    
+    text.append("""
+    > {
     
     """)
     
@@ -192,10 +212,35 @@ private func generateEvent(_ item: ContractItem) -> String {
     }
     
     text.append("""
-    return SolidityEvent(name: "\(item.name!)", anonymous: \(item.anonymous!), inputs: inputs)
+    let event = SolidityEvent(name: "\(item.name!)", anonymous: \(item.anonymous!), inputs: inputs)
+
+    """)
+    
+    if let inputs = item.inputs, !inputs.isEmpty {
+        if inputs.count == 1 && inputs[0].components == nil  {
+            text.append("""
+            return SolidityTypedEvent(event: event, { \(dictResult) in
+                return \(generateMappingSingle(inputs[0]))
+            })
+            }
+            """)
+        } else {
+            text.append("""
+            return SolidityTypedEvent(event: event, { \(dictResult) in
+                return (\(generateMapping(inputs)))
+            })
+            }
+            """)
+        }
+    } else {
+        text.append("""
+        return SolidityTypedEvent(event: event, { _ in
+            return
+        })
+        }
+        """)
     }
     
-    """)
     return text.joined()
 }
 
@@ -253,14 +298,20 @@ private func generateFunctionParametersName(_ parameters: [Parameter], unnamedPa
     return text
 }
 
-private func generateFunctionMappingSingle(_ parameter: Parameter) -> String {
+/// Generate mapping from dictionary of any to static type for single parameter
+/// Example:
+/// result["param0"] as! String
+private func generateMappingSingle(_ parameter: Parameter) -> String {
     let name = parameter.name == "" ? "\(unnamed)0" : parameter.name
     return """
     \(dictResult)[\"\(name)\"] as! \(toLocalType(parameter.type))
     """
 }
 
-private func generateFunctionMapping(_ parameters: [Parameter], unnamedParamCount: Int = 0) -> String {
+/// Generate mapping from dictionary of any to static type for list of parameter
+/// Example:
+/// result["param0"] as! String, result["name"] as! Int
+private func generateMapping(_ parameters: [Parameter], unnamedParamCount: Int = 0) -> String {
     var newParamCount = unnamedParamCount
     var text = ""
     for (index, parameter) in parameters.enumerated() {
@@ -275,7 +326,7 @@ private func generateFunctionMapping(_ parameters: [Parameter], unnamedParamCoun
         
         //is tuple
         if let components = parameter.components {
-            text += "(\(generateFunctionMapping(components, unnamedParamCount: newParamCount)))"
+            text += "(\(generateMapping(components, unnamedParamCount: newParamCount)))"
         } else {
             text += "\(dictResult)[\"\(name)\"] as! \(toLocalType(parameter.type))"
         }
@@ -300,7 +351,7 @@ private func generateFunction(_ item: ContractItem) -> String {
     }
     
     if let outputs = item.outputs, !outputs.isEmpty {
-        if outputs.count == 1 {
+        if outputs.count == 1 && outputs[0].components == nil {
             text.append("""
             \(toLocalType(outputs[0].type))
             """)
@@ -365,17 +416,17 @@ private func generateFunction(_ item: ContractItem) -> String {
     }
     
     if let outputs = item.outputs, !outputs.isEmpty {
-        if outputs.count == 1 {
+        if outputs.count == 1 && outputs[0].components == nil {
             text.append("""
             return SolidityTypedInvocation(invocation: invocation, { \(dictResult) in
-                return \(generateFunctionMappingSingle(outputs[0]))
+                return \(generateMappingSingle(outputs[0]))
             })
             }
             """)
         } else {
             text.append("""
             return SolidityTypedInvocation(invocation: invocation, { \(dictResult) in
-                return (\(generateFunctionMapping(outputs)))
+                return (\(generateMapping(outputs)))
             })
             }
             """)
@@ -465,7 +516,7 @@ private func generateEventProperty(_ items: [ContractItem], classname: String) -
             text.append(", ")
         }
         
-        text.append("\(classname).\(item.name!)")
+        text.append("\(classname).\(item.name!).event")
     }
     
     text.append("""
